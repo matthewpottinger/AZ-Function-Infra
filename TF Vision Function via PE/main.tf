@@ -103,7 +103,7 @@ resource "azurerm_subnet_network_security_group_association" "integration_subnet
 # Storage Account config
 # create a storage account with network rules
 resource "azurerm_storage_account" "AIstore" {
-  name                     = "aidocstorageacct59"
+  name                     = var.storage_acccount_name
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
@@ -173,7 +173,7 @@ resource "azurerm_private_endpoint" "tablepe" {
 # AI deployment config
 # create an azure computer vision account
 resource "azurerm_cognitive_account" "AIvision" {
-  name                = "cognitiveCVaccountvinnysdemo59"
+  name                = var.cognitive_account_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   kind                = "ComputerVision"
@@ -213,7 +213,7 @@ resource "azurerm_private_endpoint" "visionpe" {
 # Function App config
 # create an app service plan
 resource "azurerm_service_plan" "asp" {
-  name                = "AIFunctionASP"
+  name                = var.app_service_plan_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   os_type             = "Windows"
@@ -222,7 +222,7 @@ resource "azurerm_service_plan" "asp" {
 
 # Create a Function App (check config for the function requirements)
 resource "azurerm_windows_function_app" "fa" {
-  name                       = "AIFunctionAppVinny59"
+  name                       = var.function_app_name
   location                   = azurerm_resource_group.rg.location
   resource_group_name        = azurerm_resource_group.rg.name
   service_plan_id            = azurerm_service_plan.asp.id
@@ -231,12 +231,12 @@ resource "azurerm_windows_function_app" "fa" {
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME" = "dotnet-isolated"
     "WEBSITE_RUN_FROM_PACKAGE" = "1"
-    "StorageConnection" = "@Microsoft.KeyVault(SecretUri=https://aikeyvault59.vault.azure.net/secrets/storageAccountName)"
-    "ComputerVisionKey" = "@Microsoft.KeyVault(SecretUri=https://aikeyvault59.vault.azure.net/secrets/computerVisionKey)"
+    "StorageConnection" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/storageAccountName)"
+    "ComputerVisionKey" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/computerVisionKey)"
     "ComputerVisionEndpoint" = azurerm_cognitive_account.AIvision.endpoint
     "StorageAccountName" = azurerm_storage_account.AIstore.name
-    "StorageAccountKey" = "@Microsoft.KeyVault(SecretUri=https://aikeyvault59.vault.azure.net/secrets/storageAccountKey)"
-    "AzureWebJobsStorage" = "@Microsoft.KeyVault(SecretUri=https://aikeyvault59.vault.azure.net/secrets/webjobStoreConnectionString)"
+    "StorageAccountKey" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/storageAccountKey)"
+    "AzureWebJobsStorage" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/webjobStoreConnectionString)"
   }
   identity {
     type = "SystemAssigned"
@@ -322,7 +322,7 @@ resource "azurerm_app_service_virtual_network_swift_connection" "vnet_integratio
 # Key Vault configuration
 # create a key vault
 resource "azurerm_key_vault" "kv" {
-  name                = "aiKeyVault59"
+  name                = var.key_vault_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   sku_name            = "standard"
