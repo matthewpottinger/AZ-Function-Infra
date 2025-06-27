@@ -1,13 +1,13 @@
 data "azurerm_client_config" "current" {}
 
-resource "random_pet" "rg_name" {
-  prefix = var.resource_group_name_prefix
-}
+#resource "random_pet" "rg_name" {
+#  prefix = var.resource_group_name_prefix
+#}
 
 # create a resource group
 resource "azurerm_resource_group" "rg" {
   location = var.resource_group_location
-  name     = random_pet.rg_name.id
+  name     = var.resource_group_name
 }
 
 # Network Config
@@ -103,7 +103,7 @@ resource "azurerm_subnet_network_security_group_association" "integration_subnet
 # Storage Account config
 # create a storage account with network rules
 resource "azurerm_storage_account" "AIstore" {
-  name                     = var.storage_acccount_name
+  name                     = var.storage_account_name
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
@@ -115,6 +115,12 @@ resource "azurerm_storage_account" "AIstore" {
       azurerm_subnet.integrationsubnet.id
     ]
   }
+}
+
+# create a table in the storage account
+resource "azurerm_storage_table" "table" {
+  name                 = "imagetext"
+  storage_account_name = azurerm_storage_account.AIstore.name
 }
 
 # create a container in the storage account
@@ -144,12 +150,6 @@ resource "azurerm_private_endpoint" "storagepe" {
   }
 }
 
-# create a table in the storage account
-resource "azurerm_storage_table" "table" {
-  name                 = "imagetext"
-  storage_account_name = azurerm_storage_account.AIstore.name
-}
-
 # create a private endpoint for the storage account tables
 resource "azurerm_private_endpoint" "tablepe" {
   name                = "table-pe"
@@ -176,12 +176,12 @@ resource "azurerm_cognitive_account" "AIvision" {
   name                = var.cognitive_account_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  kind                = "ComputerVision"
-  sku_name            = "S1"
+  kind                = "CognitiveServices"
+  sku_name            = "S0"
   identity {
     type = "SystemAssigned"
   }
-  custom_subdomain_name = "computervisionvinnysdemo59"
+  custom_subdomain_name = var.cognitive_account_name
   network_acls {
     default_action = "Deny"
     virtual_network_rules {
@@ -191,14 +191,14 @@ resource "azurerm_cognitive_account" "AIvision" {
 }
 
 # create a private endpoint for the computer vision service
-resource "azurerm_private_endpoint" "visionpe" {
-  name                = "vision-pe"
+resource "azurerm_private_endpoint" "cognitivepe" {
+  name                = "${var.cognitive_account_name}-pe"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   subnet_id           = azurerm_subnet.PEsubnet.id
 
   private_service_connection {
-    name                           = "vision-psc"
+    name                           = "${var.cognitive_account_name}-psc"
     private_connection_resource_id = azurerm_cognitive_account.AIvision.id
     subresource_names              = ["account"]
     is_manual_connection           = false

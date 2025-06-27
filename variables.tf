@@ -16,13 +16,13 @@ variable "resource_group_location" {
   type        = string
 }
 
-variable "resource_group_name_prefix" {
-  default     = "rg"
+variable "resource_group_name" {
+  default     = "vsemmplabai-rg"
   description = "Prefix of the resource group name that's combined with a random ID so name is unique in your Azure subscription."
   type        = string
 }
 
-variable "storage_acccount_name" {
+variable "storage_account_name" {
   default     = "vsemplabssaai"
   description = "The name of the storage account to be created."
   type        = string
