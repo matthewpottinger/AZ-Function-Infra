@@ -21,7 +21,7 @@ stages:
         scriptLocation: 'inlinescript'
         inlineScript: |
               terraform --version
-              terraform init
+              terraform init -backend-config="prod.tfbackend"
               terraform validate
               terraform plan -out=tfplanaz
     - task: PublishBuildArtifacts@1 
