@@ -35,7 +35,7 @@ variable "app_service_plan_name" {
 }
 
 variable "function_app_name" {   
-  default     = "TFVisionFunction"
+  default     = "TTextToSpeechFunction"
   description = "The name of the Azure Function to be created."
   type        = string
 }

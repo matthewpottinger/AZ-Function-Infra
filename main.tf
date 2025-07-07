@@ -108,7 +108,8 @@ resource "azurerm_storage_account" "AIstore" {
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
-    network_rules {
+
+  network_rules {
     default_action = "Deny"
     virtual_network_subnet_ids = [
       azurerm_subnet.PEsubnet.id,
@@ -117,15 +118,16 @@ resource "azurerm_storage_account" "AIstore" {
   }
 }
 
-# create a table in the storage account
-resource "azurerm_storage_table" "table" {
-  name                 = "imagetext"
-  storage_account_name = azurerm_storage_account.AIstore.name
+# create an upload container in the storage account
+resource "azurerm_storage_container" "upload_container" {
+  name                  = "upload"
+  storage_account_id    = azurerm_storage_account.AIstore.id
+  container_access_type = "private"
 }
 
-# create a container in the storage account
-resource "azurerm_storage_container" "container" {
-  name                  = "images"
+# create an output container in the storage account
+resource "azurerm_storage_container" "output_container" {
+  name                  = "output"
   storage_account_id    = azurerm_storage_account.AIstore.id
   container_access_type = "private"
 }
@@ -150,7 +152,7 @@ resource "azurerm_private_endpoint" "storagepe" {
   }
 }
 
-# create a private endpoint for the storage account tables
+/* # create a private endpoint for the storage account tables
 resource "azurerm_private_endpoint" "tablepe" {
   name                = "table-pe"
   location            = azurerm_resource_group.rg.location
@@ -168,11 +170,11 @@ resource "azurerm_private_endpoint" "tablepe" {
     name                = "tablednsgroup"
     private_dns_zone_ids = [azurerm_private_dns_zone.table_dns_zone.id]
   }
-}
+} */
 
 # AI deployment config
 # create an azure computer vision account
-resource "azurerm_cognitive_account" "AIvision" {
+resource "azurerm_cognitive_account" "CogServ" {
   name                = var.cognitive_account_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
@@ -199,7 +201,7 @@ resource "azurerm_private_endpoint" "cognitivepe" {
 
   private_service_connection {
     name                           = "${var.cognitive_account_name}-psc"
-    private_connection_resource_id = azurerm_cognitive_account.AIvision.id
+    private_connection_resource_id = azurerm_cognitive_account.CogServ.id
     subresource_names              = ["account"]
     is_manual_connection           = false
   }
@@ -217,7 +219,7 @@ resource "azurerm_service_plan" "asp" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   os_type             = "Windows"
-  sku_name            = "P1v2"  # PremiumV2 plan
+  sku_name            = "B1"  # PremiumV2 plan
 }
 
 # Create a Function App (check config for the function requirements)
@@ -232,8 +234,9 @@ resource "azurerm_windows_function_app" "fa" {
     "FUNCTIONS_WORKER_RUNTIME" = "dotnet-isolated"
     "WEBSITE_RUN_FROM_PACKAGE" = "1"
     "StorageConnection" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/storageAccountName)"
-    "ComputerVisionKey" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/computerVisionKey)"
-    "ComputerVisionEndpoint" = azurerm_cognitive_account.AIvision.endpoint
+    #"ComputerVisionKey" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/computerVisionKey)"
+    #"ComputerVisionEndpoint" = azurerm_cognitive_account.AIvision.endpoint
+    "COGNITIVE_SERVICE_ENDPOINT" = azurerm_cognitive_account.CogServ.endpoint
     "StorageAccountName" = azurerm_storage_account.AIstore.name
     "StorageAccountKey" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/storageAccountKey)"
     "AzureWebJobsStorage" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/webjobStoreConnectionString)"
@@ -378,25 +381,28 @@ resource "azurerm_key_vault_access_policy" "fa_access_policy" {
 #  key_vault_id = azurerm_key_vault.kv.id
 #}
 
-# create a secret for the storage account connection string
-resource "azurerm_key_vault_secret" "webjobStoreConnectionString" {
-  name         = "webjobStoreConnectionString"
-  value        = azurerm_storage_account.AIstore.primary_connection_string
-  key_vault_id = azurerm_key_vault.kv.id
-}
+
 
 # create a secret for the storage account key
 resource "azurerm_key_vault_secret" "storageAccountKey" {
   name         = "storageAccountKey"
   value        = azurerm_storage_account.AIstore.primary_access_key
   key_vault_id = azurerm_key_vault.kv.id
+
+  depends_on = [
+    azurerm_key_vault_access_policy.kv_access_policy
+  ]
 }
 
 # create a secret for the computer vision key
-resource "azurerm_key_vault_secret" "computer_vision_key" {
-  name         = "computerVisionKey"
-  value        = azurerm_cognitive_account.AIvision.primary_access_key
+resource "azurerm_key_vault_secret" "COGNITIVE_SERVICE_KEY" {
+  name         = "cognitive-service-key"
+  value        = azurerm_cognitive_account.CogServ.primary_access_key
   key_vault_id = azurerm_key_vault.kv.id
+
+  depends_on = [
+    azurerm_key_vault_access_policy.kv_access_policy
+  ]
 }
 
 # create a secret for the storage account
@@ -404,6 +410,10 @@ resource "azurerm_key_vault_secret" "StorageConnection" {
   name         = "storageAccountName"
   value        = azurerm_storage_account.AIstore.primary_connection_string
   key_vault_id = azurerm_key_vault.kv.id
+
+  depends_on = [
+    azurerm_key_vault_access_policy.kv_access_policy
+  ]
 }
 
 # DNS config
@@ -501,32 +511,31 @@ resource "azurerm_role_assignment" "StorageContributor" {
 
 # create a role for the current user to access the AI
 resource "azurerm_role_assignment" "userAIaccess" {
-  scope                = azurerm_cognitive_account.AIvision.id
+  scope                = azurerm_cognitive_account.CogServ.id
   role_definition_name = "Cognitive Services Contributor"
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
-# create a role for the computer vision service to access the storage account
 resource "azurerm_role_assignment" "AIstorageaccess" {
   scope                = azurerm_storage_account.AIstore.id
   role_definition_name = "Storage Blob Data Reader"
-  principal_id         = azurerm_cognitive_account.AIvision.identity[0].principal_id
+  principal_id         = azurerm_cognitive_account.CogServ.identity[0].principal_id
 }
 
-# create a role for the user to view the table in the storage account
+/* # create a role for the user to view the table in the storage account
 resource "azurerm_role_assignment" "userTableaccess" {
   scope                = azurerm_storage_table.table.id
   role_definition_name = "Storage Table Data Contributor"
   principal_id         = data.azurerm_client_config.current.object_id
-}
+} */
 
-# create a role for the function app to access the table in the storage account
+/* # create a role for the function app to access the table in the storage account
 resource "azurerm_role_assignment" "FAstorageTableaccess" {
   scope                = azurerm_storage_table.table.id
   role_definition_name = "Storage Table Data Contributor"
   principal_id         = azurerm_windows_function_app.fa.identity[0].principal_id
 }
-
+ */
 # managed identity role for the function app connection to app insights
 #resource "azurerm_role_assignment" "app_insights_monitoring_publisher" {
 #  scope                = azurerm_application_insights.app_insights.id
