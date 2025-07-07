@@ -23,7 +23,7 @@ stages:
               terraform --version
               terraform init
               terraform validate
-              terraform plan -out=tfplanaz bicep build --file $(Build.SourcesDirectory)/mainAVDSHCreation.bicep'
+              terraform plan -out=tfplanaz
     - task: PublishBuildArtifacts@1 
       displayName: 'Publish artifact in pipeline' 
       inputs: 
@@ -46,6 +46,5 @@ stages:
               scriptType: 'pscore'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                inlineScript: |
                 terraform init
                 terraform apply -auto-approve
