@@ -17,7 +17,7 @@ variable "resource_group_location" {
 }
 
 variable "resource_group_name" {
-  default     = "vsemmplabai-rg"
+  default     = "vsemplabsai-rg"
   description = "Prefix of the resource group name that's combined with a random ID so name is unique in your Azure subscription."
   type        = string
 }
@@ -47,7 +47,7 @@ variable "key_vault_name" {
 }
 
 variable "cognitive_account_name" { 
-  default     = "vsemplabcogai"
+  default     = "vsemplabscogai"
   description = "The name of the Cognitive Services account to be created." 
   type        = string
 }
