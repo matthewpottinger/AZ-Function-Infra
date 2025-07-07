@@ -1,0 +1,51 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger: none
+
+pool:
+  name: 'ADO SelfHosted'
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    steps:
+    - task: AzureCLI@2
+      displayName: 'build bicep artifact'
+      inputs:
+        azureSubscription: 'ADO_AVD'
+        scriptType: 'pscore'
+        scriptLocation: 'inlinescript'
+        inlineScript: |
+              terraform --version
+              terraform init
+              terraform validate
+              terraform plan -out=tfplanaz bicep build --file $(Build.SourcesDirectory)/mainAVDSHCreation.bicep'
+    - task: PublishBuildArtifacts@1 
+      displayName: 'Publish artifact in pipeline' 
+      inputs: 
+        PathtoPublish: '$(Build.SourcesDirectory)'  
+        ArtifactName: 'finishedTemplate'  
+        publishLocation: 'Container'
+- stage: deploy
+  jobs:
+  - deployment: biceptoAzure
+    displayName: 'Deploy bicep to Azure'
+    environment: 'AzureDeployment'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: 'ADO_AVD'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                inlineScript: |
+                terraform init
+                terraform apply -auto-approve
